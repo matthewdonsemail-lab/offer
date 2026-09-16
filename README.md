@@ -386,8 +386,8 @@ Custom fields are added the same way (`createOneField` with
 Field-level reference for everything the seed ensures: [agency-offer](docs/objects/agency-offer.md).
 
 `bun run --cwd backend seed` (`backend/src/scripts/seed.ts`) ensures the
-whole thing exists in one go: it creates the `agencyOffers` object **only if
-missing**, then creates each missing custom field (`quizConfig`,
+whole thing exists in one go: it creates the `agencyOffers` and `agencyLeads`
+objects **only if missing**, then creates each missing custom field (`quizConfig`,
 `thankYouConfig`, `disqualifiedConfig`, `utmSwaps`, `calendlyUrl`,
 `metaPixelId`, `status`, `ctaType`). Anything already present is skipped, so
 re-running is safe:
@@ -398,7 +398,7 @@ re-running is safe:
 ✓ seed done — agencyOffers ready
 ```
 
-Run this first on any fresh Twenty workspace, then create records via
+Run it first on any fresh Twenty workspace, then create records via
 `POST /rest/agencyOffers` (or the Offer Detail editor, which does the same
 through the backend).
 
