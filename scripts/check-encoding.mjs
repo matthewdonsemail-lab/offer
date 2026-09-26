@@ -25,7 +25,17 @@ const SKIP_PREFIXES = ['node_modules/', 'dist/', 'build/', 'bun.lock', 'package-
 
 // U+FFFD is the replacement character, the clearest signal.
 // The rest are the mojibake prefixes a Windows-1252 round trip produces.
-const BAD = /[\uFFFD]|Ãƒ|Ã¢|â€|Â·|Â â/;
+// Written as escapes on purpose: if the source contained the literal
+// characters, this file would match its own pattern forever.
+const BAD = new RegExp(
+  [
+    '\\uFFFD', // replacement character
+    '\\u00C3\\u0192', // the A-circumflex-f-hook a cp1252 read produces
+    '\\u00C3\\u00A2', // A-tilde, from a second encoding round
+    '\\u00E2\\u20AC', // a-circumflex + euro sign
+    '\\u00C2\\u00A0', // non-breaking space
+  ].join('|'),
+);
 
 let files;
 try {

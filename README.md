@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="banner.png" alt="Offer" width="100%">
+</p>
+
 # Offer
 
 **Building a funnel and want the leads to land in your CRM instead of a
