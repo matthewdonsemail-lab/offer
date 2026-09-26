@@ -326,18 +326,26 @@ funnel renders, and they accept no write other than creating a lead.
 bunx lefthook install        # once
 ```
 
-Four pre-push gates:
+Five pre-push gates:
 
 | Gate | Fails when |
 |---|---|
 | `scripts/check-env.mjs` | code reads an env var that is not in `.env.example` |
 | `scripts/scan-secrets.mjs` | a real env file, JWT, key, or credentialed DB URL is staged |
+| `scripts/check-encoding.mjs` | a tracked file contains mojibake |
 | `bun run --cwd frontend typecheck` | the frontend does not typecheck |
 | `bun run --cwd backend typecheck` | the backend does not typecheck |
 
 Both typechecks are clean. There is no test suite and no lint configuration;
 `frontend`'s old `lint` script was removed because ESLint was never installed
 and had no config, so it could only ever fail.
+
+> **The encoding gate exists because of a real accident.** Windows PowerShell
+> 5.1 `Get-Content` reads as Windows-1252, not UTF-8, so a file round-tripped
+> through `Get-Content | WriteAllLines` silently turns every em dash into 17
+> code points of garbage — and it still looks plausible in a diff. That shipped
+> here once. The gate tells you to revert, not to re-run the pipeline that
+> caused it.
 
 ### Two backends
 
