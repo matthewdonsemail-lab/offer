@@ -233,7 +233,7 @@ export async function fetchTwenty<T>(path: string, options?: TwentyQueryOptions)
     throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
   }
 
-  const json = await response.json();
+  const json = (await response.json()) as Record<string, unknown>;
   log.debug(`Response keys:`, Object.keys(json));
 
   return json as T;
@@ -327,8 +327,8 @@ export async function graphqlMutation<T>(mutation: string): Promise<T> {
     throw new Error(`GraphQL error (${response.status}): ${text}`);
   }
 
-  const json = await response.json();
-  if (json.errors?.length > 0) {
+  const json = (await response.json()) as { errors?: unknown[]; data?: T };
+  if (json.errors && json.errors.length > 0) {
     throw new Error(`GraphQL errors: ${JSON.stringify(json.errors)}`);
   }
 

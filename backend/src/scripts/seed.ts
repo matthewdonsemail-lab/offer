@@ -101,7 +101,7 @@ async function ensureObject() {
           namePlural: 'agencyOffers',
           labelSingular: 'Agency Offer',
           labelPlural: 'Agency Offers',
-          description: 'Offer funnels built by open-offer-builder (hero, quiz, thank-you, disqualified)',
+          description: 'Offer funnels built by offer (hero, quiz, thank-you, disqualified)',
         },
       },
     },

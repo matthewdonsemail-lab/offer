@@ -15,8 +15,11 @@ pre-push:
 
     - name: typecheck-frontend
       run: bun run --cwd frontend typecheck
-      # Backend tsc is intentionally excluded: backend/src/lib/twenty-client.ts
-      # has pre-existing type errors unrelated to this gate.
+
+    - name: typecheck-backend
+      run: bun run --cwd backend typecheck
+      # Both typechecks are clean. backend/src/lib/twenty-client.ts used to be
+      # excluded here for pre-existing errors; those are fixed, so it is gated.
 
     - name: deploy-railcode
       root: railcode/offer-builder

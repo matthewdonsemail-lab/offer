@@ -4,6 +4,7 @@
 // Usage: node scripts/scan-secrets.mjs   (run from repo root)
 import { execSync } from 'node:child_process';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 
@@ -13,6 +14,10 @@ const SKIP_EXT = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.svg',
   '.mp4', '.webm', '.mp3', '.pdf', '.zip',
 ]);
+
+// Obvious documentation placeholders are not credentials.
+const PLACEHOLDER =
+  /^(?:\*+|x{2,}|y{3,}|z{3,}|a{3,}|pass(?:word)?|changeme|secret|placeholder|redacted|your[_-].*|todo|replace[_-]?me|<.*>|\$\{.*\}|\{\{.*\}\}|%.*%)$/i;
 
 const PATTERNS = [
   {
@@ -26,7 +31,10 @@ const PATTERNS = [
   },
   {
     name: 'credentialed connection URL (postgres/mongo/mysql/redis)',
-    regex: /(?:postgres(?:ql)?|mongodb(?:\+srv)?|mysql|redis):\/\/[^/\s:]+:[^/\s@]+@/gi,
+    regex: /(?:postgres(?:ql)?|mongodb(?:\+srv)?|mysql|redis):\/\/([^/\s:]+):([^/\s@]+)@/gi,
+    // A documentation placeholder is not a credential. Without this, every
+    // `postgresql://user:pass@host` example in a README fails the scan.
+    placeholder: (match, _scheme, password) => PLACEHOLDER.test(password),
   },
   {
     name: 'live secret prefix (sk-live / xox / ghp / AKIA)',
@@ -57,9 +65,12 @@ function stagedContent(file) {
 }
 
 const findings = [];
+const SELF = path.basename(fileURLToPath(import.meta.url));
 
 for (const file of stagedFiles()) {
   const base = path.basename(file);
+  // This file contains the patterns themselves, so it would always match.
+  if (base === SELF) continue;
   // Real env files must never be staged (.env.example is the only exception)
   if (base.startsWith('.env') && base !== '.env.example') {
     findings.push({ file, line: 0, name: 'real env file staged', match: base });
@@ -69,14 +80,18 @@ for (const file of stagedFiles()) {
   const text = stagedContent(file);
   if (text == null || text.includes('\0')) continue; // binary — skip
   const lines = text.split('\n');
-  for (const { name, regex } of PATTERNS) {
+  for (const { name, regex, placeholder } of PATTERNS) {
     regex.lastIndex = 0;
     lines.forEach((line, i) => {
       // Allow-list: placeholders and docs that merely mention formats
       if (/your-|change-me|example\.com|placeholder/i.test(line)) return;
       regex.lastIndex = 0;
-      const m = line.match(regex);
-      if (m) findings.push({ file, line: i + 1, name, match: m[0].slice(0, 60) });
+      // exec, not match: String.match() with a /g flag discards capture
+      // groups, which the placeholder check needs.
+      const m = regex.exec(line);
+      if (!m) return;
+      if (placeholder && placeholder(...m)) return;
+      findings.push({ file, line: i + 1, name, match: m[0].slice(0, 60) });
     });
   }
 }

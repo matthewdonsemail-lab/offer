@@ -123,7 +123,7 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authMiddleware, async (req, res) => {
   try {
     const id = req.params.id as string;
     log.info(`Deleting agencyLead ${id} (preview reset - clearing from Twenty)`);

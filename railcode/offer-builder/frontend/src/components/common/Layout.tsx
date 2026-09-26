@@ -70,7 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Gift className="w-2.5 h-2.5 text-white" />
             </div>
             <span className="text-[13px] font-medium tracking-tight truncate text-[var(--ods-text-primary,#18181b)]">
-              Offer Builder
+              Offer
             </span>
             <ChevronDown className="w-3.5 h-3.5 text-[var(--ods-text-tertiary,#8a8a93)] flex-shrink-0" />
           </div>
@@ -123,7 +123,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 O
               </div>
               <span className="text-[12px] font-medium text-[var(--ods-text-secondary,#575757)] truncate">
-                Offer Builder
+                Offer
               </span>
             </div>
             <button

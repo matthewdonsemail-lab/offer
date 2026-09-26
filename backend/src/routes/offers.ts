@@ -126,7 +126,6 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
       ...(status && { status }),
       ...(ctaType && { ctaType }),
       ...(prospectId && { prospectId }),
-      ...(prospectId && { name: prospectId }),
       ...((quizConfig !== undefined) && { quizConfig }),
       ...((quiz !== undefined) && { quizConfig: quiz }),
       ...(calendlyUrl !== undefined && { calendlyUrl }),
@@ -169,10 +168,7 @@ router.patch("/:id", authMiddleware, async (req: AuthRequest, res) => {
     if (industryId !== undefined) data.industryId = industryId;
     if (status !== undefined) data.status = status;
     if (ctaType !== undefined) data.ctaType = ctaType;
-    if (prospectId !== undefined) {
-      data.prospectId = prospectId;
-      data.name = prospectId;
-    }
+    if (prospectId !== undefined) data.prospectId = prospectId;
     if (quizConfig !== undefined) data.quizConfig = quizConfig;
     if (quiz !== undefined) data.quizConfig = quiz;
     if (calendlyUrl !== undefined) data.calendlyUrl = calendlyUrl;

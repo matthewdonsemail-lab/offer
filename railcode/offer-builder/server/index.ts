@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { ctx, secrets } from '@railcode/sdk'
 
-// Offer Builder worker (Railcode edition). Same Twenty-backed API as the
+// Offer worker (Railcode edition). Same Twenty-backed API as the
 // Express backend, minus what the platform now owns:
 // - Auth is the verified Railcode org caller (ctx.user). No JWT, no Postgres
 //   password check (the tailnet PG is unreachable from the worker anyway).
@@ -425,7 +425,6 @@ function pickOfferFields(body: any): Record<string, any> {
   }
   if (data.quiz !== undefined && data.quizConfig === undefined) data.quizConfig = data.quiz
   delete (data as any).quiz
-  if (data.prospectId !== undefined) data.name = data.prospectId
   return data
 }
 

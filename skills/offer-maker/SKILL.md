@@ -1,6 +1,6 @@
 ---
 name: offer-maker
-description: Build and edit offer funnels in open-offer-builder — Twenty agencyOffers schema, editor tabs, quiz/calendly/pixel wiring, and preview flow. Use when creating offers, adding funnel fields, or debugging saves and previews.
+description: Build and edit offer funnels in offer — Twenty agencyOffers schema, editor tabs, quiz/calendly/pixel wiring, and preview flow. Use when creating offers, adding funnel fields, or debugging saves and previews.
 ---
 
 # Offer Maker

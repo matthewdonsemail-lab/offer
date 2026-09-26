@@ -39,7 +39,7 @@ export function LoginPage({ onLogin }: { onLogin?: (user: any) => void } = {}) {
     <TropicalTideBackground className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md py-16">
         <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg p-8 space-y-5 text-center">
-          <h2 className="text-xl font-semibold text-gray-800">Offer Builder</h2>
+          <h2 className="text-xl font-semibold text-gray-800">Offer</h2>
           {error && (
             <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg text-sm">
               <AlertCircle className="w-4 h-4 shrink-0" />

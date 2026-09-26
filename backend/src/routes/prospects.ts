@@ -72,7 +72,7 @@ router.get("/", authMiddleware, async (req: AuthRequest, res) => {
       const industryId = linkedId ? campaignIndustry.get(linkedId) || label : label;
       return {
         id: r.id,
-        displayName: [r.firstName, r.lastName].filter(Boolean).join(' ') || r.first_name ? `${r.first_name} ${r.last_name}`.trim() : (r.name || r.company || r.email || r.id),
+        displayName: [r.firstName, r.lastName].filter(Boolean).join(' ') || (r.first_name ? `${r.first_name} ${r.last_name}`.trim() : r.name || r.company || r.email || r.id),
         firstName: r.firstName || r.first_name,
         lastName: r.lastName || r.last_name,
         company: r.company,
