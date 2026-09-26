@@ -393,7 +393,7 @@ If this is useful, a star helps someone else find it.
 [![License](https://img.shields.io/github/license/matthewdonsemail-lab/offer?style=flat-square)](https://github.com/matthewdonsemail-lab/offer/blob/main/LICENSE)
 
 [![GitHub](https://img.shields.io/badge/GitHub-matthewdonsemail-lab/offer-181717?style=flat-square&logo=github&link=https://github.com/matthewdonsemail-lab/offer)](https://github.com/matthewdonsemail-lab/offer)
-[![X](https://img.shields.io/badge/X-matthewdonsemail-000000?style=flat-square&logo=x&link=https://x.com/matthewdonsemail)](https://x.com/matthewdonsemail)
+[![X](https://img.shields.io/badge/X-matthewsoldit-000000?style=flat-square&logo=x&link=https://x.com/matthewsoldit)](https://x.com/matthewsoldit)
 [![Issues](https://img.shields.io/github/issues/matthewdonsemail-lab/offer?style=flat-square)](https://github.com/matthewdonsemail-lab/offer/issues)
 [![Pull requests](https://img.shields.io/github/issues-pr/matthewdonsemail-lab/offer?style=flat-square)](https://github.com/matthewdonsemail-lab/offer/pulls)
 
