@@ -13,6 +13,11 @@ pre-push:
       # Staged changes must not contain real env files, JWTs, private keys,
       # credentialed DB URLs, or live secret prefixes.
 
+    - name: encoding
+      run: node scripts/check-encoding.mjs
+      # Catches mojibake from a Windows-1252 round trip through PowerShell,
+      # which silently mangles every non-ASCII character in a file.
+
     - name: typecheck-frontend
       run: bun run --cwd frontend typecheck
 

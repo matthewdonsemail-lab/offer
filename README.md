@@ -5,7 +5,7 @@ spreadsheet? [Talk to me on X](https://x.com/matthewsoldit).**
 
 An open-source offer-funnel builder on [Twenty CRM](https://twenty.com). You
 author an offer once, Twenty stores it, and the funnel renders from that record
-ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â so editing the offer changes the live page immediately. No CMS, no build
+— so editing the offer changes the live page immediately. No CMS, no build
 step, no second database to keep in sync.
 
 Every record Offer creates is a row in your own Twenty workspace. You can see
@@ -113,7 +113,7 @@ flowchart LR
 A second, independent implementation of the same API lives in
 `railcode/offer-builder/` as a Hono worker. It exists so the funnel can run
 inside a private Railcode workspace. It is hand-synced, not generated, and
-there is no tooling keeping the two in step ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â see
+there is no tooling keeping the two in step — see
 [Two backends](#two-backends).
 
 ## Where your data lives
@@ -219,7 +219,7 @@ bun run dev                       # backend :4000, frontend :3000
 ```
 
 Open http://localhost:3000. Sign in with an account that already exists in
-Twenty ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â signup is disabled, because Offer verifies against Twenty's users
+Twenty — signup is disabled, because Offer verifies against Twenty's users
 rather than keeping its own.
 
 If `TWENTY_DATABASE_URL` is unreachable the backend still runs; only password
@@ -275,7 +275,7 @@ install command, drop the one you no longer use.
 
 The Content-Security-Policy `frame-ancestors` in `vercel.json` allows the
 funnel to be embedded in Twenty. It also lists a few private tailnet
-hostnames ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â worth trimming before you rely on it in production.
+hostnames — worth trimming before you rely on it in production.
 
 **Railcode** runs the same API as a private Hono worker:
 
@@ -287,8 +287,8 @@ railcode deploy
 ```
 
 > **A push can deploy this.** `lefthook.yml` runs `railcode deploy` on any push
-> that touches `railcode/offer-builder/**`. That is deliberate ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â it is what
-> stops the two backends drifting ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â but it means pushing to this repo can ship
+> that touches `railcode/offer-builder/**`. That is deliberate — it is what
+> stops the two backends drifting — but it means pushing to this repo can ship
 > to the live app. It needs `railcode login` first.
 
 ## API reference
