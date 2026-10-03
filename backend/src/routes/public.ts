@@ -193,17 +193,30 @@ router.get("/offers/by-prospect/:key", async (req, res) => {
 });
 
 /**
+ * Stable public URLs for the funnel that marketing links to, mapped to the
+ * offer.ctaType they select. These must survive offer renames: ui-kit links
+ * straight at `/offer/book-a-consultation`, so it resolves by CTA intent and
+ * never by whatever the offer happens to be titled this week.
+ */
+const CTA_SLUG_ALIASES: Record<string, string> = {
+  "book-a-consultation": "CONSULTATION",
+  consultation: "CONSULTATION",
+  "book-a-call": "CONSULTATION",
+};
+
+/**
  * GET /api/public/offers/:slug
  * Unauthenticated visual payload for the public funnel at offer.domain.com.
- * :slug may be a Twenty record id, a slugified title/name, or "default"
- * (first ACTIVE offer, else first offer).
+ * :slug may be a Twenty record id, a slugified title/name, a CTA alias
+ * ("book-a-consultation"), or "default" (first ACTIVE offer, else first
+ * offer).
  */
 router.get("/offers/:slug", async (req, res) => {
   try {
     const slug = req.params.slug as string;
     let offer: TwentyRecord | null = null;
 
-    if (slug === "default") {
+    if (slug === "default" || slug === "") {
       const offers = await twentyClient.list<TwentyRecord>(OBJECT_NAME, 100);
       offer =
         offers.find((o) => String((o as any).status || "").toUpperCase() === "ACTIVE") ??
@@ -221,6 +234,22 @@ router.get("/offers/:slug", async (req, res) => {
         offers.find(
           (o) => slugify((o as any).title) === slug || slugify((o as any).name) === slug
         ) ?? null;
+
+      if (!offer) {
+        const ctaType = CTA_SLUG_ALIASES[slug];
+        if (ctaType) {
+          offer =
+            offers.find(
+              (o) =>
+                String((o as any).ctaType || "").toUpperCase() === ctaType &&
+                String((o as any).status || "").toUpperCase() === "ACTIVE"
+            ) ??
+            offers.find(
+              (o) => String((o as any).ctaType || "").toUpperCase() === ctaType
+            ) ??
+            null;
+        }
+      }
     }
 
     if (!offer) {
