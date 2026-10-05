@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ToastProvider } from '@/components/ui/Toast';
 import { Layout } from '@/components/common/Layout';
 import { LoginPage } from '@/pages/LoginPage';
+import { CallbackPage } from '@/pages/CallbackPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { OffersPage } from '@/pages/OffersPage';
 import { OfferDetailPage } from '@/pages/OfferDetailPage';
@@ -68,8 +69,9 @@ export function App() {
           <Routes>
             <Route 
               path="/login" 
-              element={<LoginPage onLogin={handleLogin} />} 
+              element={<LoginPage />} 
             />
+            <Route path="/callback" element={<CallbackPage onLogin={handleLogin} />} />
             <Route
               path="/preview/:industryId/:id"
               element={<PreviewPage />}
