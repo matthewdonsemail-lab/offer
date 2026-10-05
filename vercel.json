@@ -14,7 +14,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "frame-ancestors 'self' https://twenty.inferencesaver.com https://*.vercel.app https://*.ts.net http://localhost:3000 http://100.98.241.63:3000 http://100.98.241.63 http://node01:3000 http://node01"
+          "value": "frame-ancestors 'self' https://listeningkit.com https://www.listeningkit.com https://twenty.inferencesaver.com https://*.vercel.app https://*.ts.net http://localhost:3000 http://100.98.241.63:3000 http://100.98.241.63 http://node01:3000 http://node01"
         }
       ]
     }
