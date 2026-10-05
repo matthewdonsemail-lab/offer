@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useOffer, useUpdateOffer, useCreateOffer, api } from '@/lib/api';
+import { useOffer, useUpdateOffer, useCreateOffer, useCareers, api } from '@/lib/api';
 import { WidgetCard } from '@/components/ui/WidgetCard';
 import { Spokes } from '@/components/ui/Spinner';
 import { Badge } from '@/components/ui/Badge';
@@ -27,6 +27,7 @@ export function OfferDetailPage() {
   const { data: offer, isLoading } = useOffer(isNew ? undefined : id);
   const updateMutation = useUpdateOffer();
   const createMutation = useCreateOffer();
+  const { data: careers = [] } = useCareers();
 
   const [title, setTitle] = useState('');
   const [previewProspectId, setPreviewProspectId] = useState(''); // preview-only — never persisted
@@ -37,6 +38,19 @@ export function OfferDetailPage() {
   const [videoUrl, setVideoUrl] = useState({ primaryLinkLabel: '', primaryLinkUrl: '', secondaryLinks: [] as any[] });
   const [status, setStatus] = useState('DRAFT');
   const [ctaType, setCtaType] = useState('CONSULTATION');
+  // Recruitment funnel: LEAD = quiz + Calendly (the default, unchanged),
+  // RECRUITMENT = the agencyCareers questionnaire + a submitted video.
+  const [funnelType, setFunnelType] = useState<'LEAD' | 'RECRUITMENT'>('LEAD');
+  const [careerSlug, setCareerSlug] = useState('');
+  const [applicationConfig, setApplicationConfig] = useState({
+    videoPrompt: '',
+    videoLabel: '',
+    videoPlaceholder: '',
+    videoRequired: true,
+    submitNote: '',
+    submittedHeading: '',
+    submittedBody: '',
+  });
   const [calendlyUrl, setCalendlyUrl] = useState('');
   const [metaPixelId, setMetaPixelId] = useState('');
   const [saving, setSaving] = useState(false);
@@ -168,6 +182,28 @@ useEffect(() => {
       if (typeof (offer as any).brandName === 'string') setBrandName((offer as any).brandName);
       if (typeof (offer as any).brandSub === 'string') setBrandSub((offer as any).brandSub);
       if (typeof (offer as any).brandLogoUrl === 'string') setBrandLogoUrl((offer as any).brandLogoUrl);
+      // Recruitment funnel fields
+      if (typeof (offer as any).funnelType === 'string') {
+        setFunnelType((offer as any).funnelType.toUpperCase() === 'RECRUITMENT' ? 'RECRUITMENT' : 'LEAD');
+      }
+      if (typeof (offer as any).careerSlug === 'string') setCareerSlug((offer as any).careerSlug);
+      const rawAppConfig = (offer as any).applicationConfig;
+      if (rawAppConfig) {
+        try {
+          const parsed = typeof rawAppConfig === 'string' ? JSON.parse(rawAppConfig) : rawAppConfig;
+          if (parsed && typeof parsed === 'object') {
+            setApplicationConfig((prev) => ({
+              videoPrompt: typeof parsed.videoPrompt === 'string' ? parsed.videoPrompt : prev.videoPrompt,
+              videoLabel: typeof parsed.videoLabel === 'string' ? parsed.videoLabel : prev.videoLabel,
+              videoPlaceholder: typeof parsed.videoPlaceholder === 'string' ? parsed.videoPlaceholder : prev.videoPlaceholder,
+              videoRequired: typeof parsed.videoRequired === 'boolean' ? parsed.videoRequired : prev.videoRequired,
+              submitNote: typeof parsed.submitNote === 'string' ? parsed.submitNote : prev.submitNote,
+              submittedHeading: typeof parsed.submittedHeading === 'string' ? parsed.submittedHeading : prev.submittedHeading,
+              submittedBody: typeof parsed.submittedBody === 'string' ? parsed.submittedBody : prev.submittedBody,
+            }));
+          }
+        } catch {}
+      }
       const rawDisq = (offer as any).disqualifiedConfig;
       if (rawDisq) {
         try {
@@ -233,8 +269,16 @@ useEffect(() => {
         ...(brandSub.trim() && { brandSub }),
         ...(brandLogoUrl.trim() && { brandLogoUrl }),
         ...(utmSwaps.rules.length > 0 && { utmSwaps: { rules: utmSwaps.rules } }),
+        funnelType,
+        ...(funnelType === 'RECRUITMENT' && {
+          careerSlug,
+          applicationConfig,
+          // A recruitment funnel has no Calendly. Clearing the field stops a
+          // stale embed from being written back onto the offer by a later save.
+          calendlyUrl: '',
+        }),
         // prefer QualifierQuiz's calendlyEmbed, fallback to separate state
-        ...( (quizData.calendlyEmbed || calendlyUrl) && { calendlyUrl: quizData.calendlyEmbed || calendlyUrl }),
+        ...(funnelType !== 'RECRUITMENT' && (quizData.calendlyEmbed || calendlyUrl) && { calendlyUrl: quizData.calendlyEmbed || calendlyUrl }),
       };
       if (includeExtras) {
         base.status = status;
@@ -538,6 +582,140 @@ useEffect(() => {
           />
         )}
         {activeTab === 'settings' && (
+          <WidgetCard title="Funnel type">
+            <div className="space-y-3">
+              <p className="text-[12px] text-[var(--ods-text-secondary)]">
+                <strong>Lead</strong> is the quiz plus a Calendly booking — the default, and
+                unchanged. <strong>Recruitment</strong> swaps the quiz for the career's own
+                questionnaire and the booking for a submitted video. Applications are written to{' '}
+                <code className="bg-[var(--ods-bg-secondary)] px-1 py-0.5 rounded-[3px] border border-[var(--ods-border)]">agencyCareerApplications</code>,
+                never to leads, so applicants never end up in the dialer's call list.
+              </p>
+              <div className="flex gap-2">
+                {(['LEAD', 'RECRUITMENT'] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setFunnelType(value)}
+                    className={`px-3 h-9 text-[13px] font-medium rounded-[6px] border transition-colors ${
+                      funnelType === value
+                        ? 'bg-[var(--ods-brand-600,#2563eb)] text-white border-[var(--ods-brand-600,#2563eb)]'
+                        : 'bg-white border-[var(--ods-border)] text-[var(--ods-text-secondary)] hover:bg-[var(--ods-bg-secondary)]'
+                    }`}
+                  >
+                    {value === 'LEAD' ? 'Lead' : 'Recruitment'}
+                  </button>
+                ))}
+              </div>
+
+              {funnelType === 'RECRUITMENT' && (
+                <div className="space-y-3 border-t border-[var(--ods-border,#e5e5ea)] pt-3">
+                  <div>
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-[var(--ods-text-tertiary)] mb-1">
+                      Role (agencyCareers)
+                    </label>
+                    <select
+                      value={careerSlug}
+                      onChange={(e) => setCareerSlug(e.target.value)}
+                      className="w-full h-9 px-3 text-[13px] border border-[var(--ods-border)] rounded-[6px] bg-white focus:outline-none focus:border-[var(--ods-brand-600)]"
+                    >
+                      <option value="">Choose a published role…</option>
+                      {careers.map((c) => (
+                        <option key={c.id} value={c.slug ?? ''} disabled={c.status !== 'PUBLISHED'}>
+                          {c.title ?? c.slug}
+                          {c.status && c.status !== 'PUBLISHED' ? ` (${c.status})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[11px] text-[var(--ods-text-tertiary)]">
+                      The questionnaire and role copy are read from this record. The public URL is{' '}
+                      <code className="bg-[var(--ods-bg-secondary)] px-1 py-0.5 rounded-[3px] border border-[var(--ods-border)]">
+                        /offer/job/{careerSlug || '<slug>'}
+                      </code>
+                      .
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-[var(--ods-text-tertiary)] mb-1">
+                      Video prompt
+                    </label>
+                    <input
+                      type="text"
+                      value={applicationConfig.videoPrompt}
+                      onChange={(e) => setApplicationConfig((p) => ({ ...p, videoPrompt: e.target.value }))}
+                      placeholder="e.g. Record 60 seconds on why you want this role."
+                      className="w-full h-9 px-3 text-[13px] border border-[var(--ods-border)] rounded-[6px] bg-white focus:outline-none focus:border-[var(--ods-brand-600)]"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-medium uppercase tracking-wider text-[var(--ods-text-tertiary)] mb-1">
+                        Video field label
+                      </label>
+                      <input
+                        type="text"
+                        value={applicationConfig.videoLabel}
+                        onChange={(e) => setApplicationConfig((p) => ({ ...p, videoLabel: e.target.value }))}
+                        placeholder="Video link"
+                        className="w-full h-9 px-3 text-[13px] border border-[var(--ods-border)] rounded-[6px] bg-white focus:outline-none focus:border-[var(--ods-brand-600)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium uppercase tracking-wider text-[var(--ods-text-tertiary)] mb-1">
+                        Placeholder
+                      </label>
+                      <input
+                        type="text"
+                        value={applicationConfig.videoPlaceholder}
+                        onChange={(e) => setApplicationConfig((p) => ({ ...p, videoPlaceholder: e.target.value }))}
+                        placeholder="https://www.loom.com/share/…"
+                        className="w-full h-9 px-3 text-[13px] border border-[var(--ods-border)] rounded-[6px] bg-white focus:outline-none focus:border-[var(--ods-brand-600)]"
+                      />
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-2 text-[13px] text-[var(--ods-text-secondary)]">
+                    <input
+                      type="checkbox"
+                      checked={applicationConfig.videoRequired}
+                      onChange={(e) => setApplicationConfig((p) => ({ ...p, videoRequired: e.target.checked }))}
+                    />
+                    Video link required
+                  </label>
+                  <div>
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-[var(--ods-text-tertiary)] mb-1">
+                      Confirmation heading
+                    </label>
+                    <input
+                      type="text"
+                      value={applicationConfig.submittedHeading}
+                      onChange={(e) => setApplicationConfig((p) => ({ ...p, submittedHeading: e.target.value }))}
+                      placeholder="Application received"
+                      className="w-full h-9 px-3 text-[13px] border border-[var(--ods-border)] rounded-[6px] bg-white focus:outline-none focus:border-[var(--ods-brand-600)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium uppercase tracking-wider text-[var(--ods-text-tertiary)] mb-1">
+                      Confirmation body ( {'{{role}}'} supported )
+                    </label>
+                    <input
+                      type="text"
+                      value={applicationConfig.submittedBody}
+                      onChange={(e) => setApplicationConfig((p) => ({ ...p, submittedBody: e.target.value }))}
+                      placeholder="We'll be in touch about {{role}} within two working days."
+                      className="w-full h-9 px-3 text-[13px] border border-[var(--ods-border)] rounded-[6px] bg-white focus:outline-none focus:border-[var(--ods-brand-600)]"
+                    />
+                  </div>
+                  <p className="text-[11px] text-[var(--ods-text-tertiary)]">
+                    The video is a link (Loom, Vimeo, Drive), not an upload: a serverless
+                    function caps a multipart body at 4.5&nbsp;MB, well under one phone video.
+                  </p>
+                </div>
+              )}
+            </div>
+          </WidgetCard>
+        )}
+        {activeTab === 'settings' && (
           <SettingsForm
             value={{ metaPixelId, status, ctaType }}
             onChange={(next) => {
@@ -622,7 +800,7 @@ useEffect(() => {
             </div>
           </WidgetCard>
         )}
-        {activeTab === 'landing' && (
+        {activeTab === 'landing' && funnelType !== 'RECRUITMENT' && (
           <QualifierQuiz
             value={quizData}
             onChange={(next) => {

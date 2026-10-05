@@ -2,6 +2,8 @@ import { Router } from "express";
 import { twentyClient, type TwentyRecord } from "../lib/twenty-client.js";
 import { createAgencyLead } from "./leads.js";
 import { createLogger } from "../lib/logger.js";
+import { normalizeQuestionnaire } from "../lib/career-questionnaire.js";
+import { submitApplication } from "../lib/applications.js";
 
 const router = Router();
 const log = createLogger('public');
@@ -37,6 +39,13 @@ const VISUAL_KEYS = [
   "brandName",
   "brandSub",
   "brandLogoUrl",
+  // Recruitment funnels. `careerQuestionnaire` is added server-side (see
+  // attachCareer), never authored on the offer row.
+  "funnelType",
+  "careerSlug",
+  "applicationConfig",
+  "careerQuestionnaire",
+  "roleTitle",
 ] as const;
 
 function toVisualPayload(record: Record<string, any>): Record<string, any> {
@@ -108,6 +117,60 @@ function primaryLinkUrl(videoUrl: unknown): string | undefined {
     if (typeof u === "string" && u.length > 0) return u;
   }
   return undefined;
+}
+
+/**
+ * Resolve the agencyCareers row a RECRUITMENT offer points at and attach its
+ * normalised questionnaire to the payload.
+ *
+ * The questionnaire is stored on the career record, not the offer, so the
+ * offer stays a presentation shell and the role stays the single source of
+ * truth for what is asked. A funnel with `funnelType: RECRUITMENT` and no
+ * `careerSlug` is a misconfiguration: we 404 rather than render an
+ * application form with no questions on it.
+ */
+async function attachCareer(
+  payload: Record<string, any>,
+  offer: Record<string, any>,
+): Promise<Record<string, any> | null> {
+  const funnelType = String(offer.funnelType ?? "LEAD").toUpperCase();
+  payload.funnelType = funnelType;
+  if (funnelType !== "RECRUITMENT") return payload;
+
+  const slug = String(offer.careerSlug ?? "").trim();
+  if (!slug) {
+    log.error(`RECRUITMENT offer ${offer.id} has no careerSlug`);
+    return null;
+  }
+
+  let career: Record<string, any> | null = null;
+  try {
+    const matches = await twentyClient.list<TwentyRecord>("agencyCareers", {
+      limit: 1,
+      filter: `slug[eq]:${slug}`,
+    } as any);
+    career = (matches[0] as Record<string, any>) ?? null;
+  } catch {
+    career = null;
+  }
+  if (!career) {
+    log.error(`career ${slug} not found for offer ${offer.id}`);
+    return null;
+  }
+  if (String(career.status ?? "").toUpperCase() !== "PUBLISHED") {
+    log.error(`career ${slug} is ${career.status ?? "unset"}, not PUBLISHED`);
+    return null;
+  }
+
+  const { steps, droppedStepIds } = normalizeQuestionnaire(career.body);
+  if (droppedStepIds.length > 0) {
+    log.warn(`career ${slug} has unrenderable questionnaire steps: ${droppedStepIds.join(", ")}`);
+  }
+  payload.careerSlug = slug;
+  payload.roleTitle = String(career.title ?? career.name ?? slug);
+  payload.careerQuestionnaire = steps;
+  log.info(`Serving RECRUITMENT offer ${offer.id} for career ${slug} (${steps.length} steps)`);
+  return payload;
 }
 
 /**
@@ -184,6 +247,10 @@ router.get("/offers/by-prospect/:key", async (req, res) => {
         primaryLinkUrl: effectiveUrl,
       };
     }
+    // Industry pages are sales surfaces by construction (a prospect has a
+    // campaign behind them). A RECRUITMENT offer must never be reachable here
+    // even if someone left a stale industryId on it.
+    payload.funnelType = "LEAD";
     log.info(`Serving industry offer ${routing.industryValue} (${(offer as any).id}) for prospect ${prospectId} video=${mode}`);
     res.json(payload);
   } catch (err: any) {
@@ -205,6 +272,42 @@ const CTA_SLUG_ALIASES: Record<string, string> = {
 };
 
 /**
+ * GET /api/public/offers/job/:careerSlug
+ * Stable public URL for a recruitment funnel. Resolves through the career, not
+ * the offer's title, so the marketing link matches the career page it sits
+ * next to and survives an offer rename. Registered before `/offers/:slug` so
+ * "job" is not read as a slug.
+ */
+router.get("/offers/job/:careerSlug", async (req, res) => {
+  try {
+    const careerSlug = decodeURIComponent(req.params.careerSlug as string);
+    const offers = await twentyClient.list<TwentyRecord>(OBJECT_NAME, 100);
+    const offer = offers.find(
+      (o) =>
+        String((o as any).funnelType ?? "LEAD").toUpperCase() === "RECRUITMENT" &&
+        String((o as any).careerSlug ?? "") === careerSlug,
+    );
+    if (!offer) {
+      res.status(404).json({ error: "Offer not found" });
+      return;
+    }
+    const payload = await attachCareer(
+      toVisualPayload(offer as unknown as Record<string, any>),
+      offer as unknown as Record<string, any>,
+    );
+    if (!payload) {
+      res.status(404).json({ error: "Recruitment funnel is not configured" });
+      return;
+    }
+    log.info(`Serving recruitment offer for career ${careerSlug} -> ${(offer as any).id}`);
+    res.json(payload);
+  } catch (err: any) {
+    log.error(`Error serving recruitment offer ${req.params.careerSlug}:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * GET /api/public/offers/:slug
  * Unauthenticated visual payload for the public funnel at offer.domain.com.
  * :slug may be a Twenty record id, a slugified title/name, a CTA alias
@@ -216,8 +319,16 @@ router.get("/offers/:slug", async (req, res) => {
     const slug = req.params.slug as string;
     let offer: TwentyRecord | null = null;
 
+    // Recruitment funnels are excluded from `default` and from the CTA
+    // aliases: an applicant landing on the sales funnel is a routing bug, and
+    // a sales visitor landing on a job application is worse.
+    const isRecruitment = (o: Record<string, any>) =>
+      String(o.funnelType ?? "LEAD").toUpperCase() === "RECRUITMENT";
+
     if (slug === "default" || slug === "") {
-      const offers = await twentyClient.list<TwentyRecord>(OBJECT_NAME, 100);
+      const offers = (await twentyClient.list<TwentyRecord>(OBJECT_NAME, 100)).filter(
+        (o) => !isRecruitment(o as Record<string, any>),
+      );
       offer =
         offers.find((o) => String((o as any).status || "").toUpperCase() === "ACTIVE") ??
         offers[0] ??
@@ -256,8 +367,16 @@ router.get("/offers/:slug", async (req, res) => {
       res.status(404).json({ error: "Offer not found" });
       return;
     }
+    const payload = await attachCareer(
+      toVisualPayload(offer as unknown as Record<string, any>),
+      offer as unknown as Record<string, any>,
+    );
+    if (!payload) {
+      res.status(404).json({ error: "Recruitment funnel is not configured" });
+      return;
+    }
     log.info(`Serving public offer payload for ${slug} -> ${(offer as any).id}`);
-    res.json(toVisualPayload(offer as unknown as Record<string, any>));
+    res.json(payload);
   } catch (err: any) {
     log.error(`Error serving public offer ${req.params.slug}:`, err.message);
     res.status(500).json({ error: err.message });
@@ -375,6 +494,91 @@ router.post("/leads", async (req, res) => {
   } catch (err: any) {
     log.error("Error creating public lead:", err.message);
     console.error('[public] error', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/public/applications
+ * Unauthenticated application capture for a RECRUITMENT funnel. Writes an
+ * `agencyCareerApplication`, never an `agencyLead`.
+ * Body: { offerId, answers, videoUrl?, videoNote?, sourceUrl?, visitorId?,
+ *   utmSource?, utmMedium?, utmCampaign? }
+ * The offer is re-read server-side: the client cannot choose which role it is
+ * applying for, only which funnel it came through.
+ */
+router.post("/applications", async (req, res) => {
+  try {
+    const {
+      offerId,
+      answers,
+      videoUrl,
+      videoNote,
+      sourceUrl,
+      visitorId,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+    } = req.body ?? {};
+
+    if (!offerId || typeof offerId !== "string") {
+      res.status(400).json({ error: "offerId is required" });
+      return;
+    }
+    if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
+      res.status(400).json({ error: "answers is required" });
+      return;
+    }
+
+    let offer: Record<string, any>;
+    try {
+      offer = (await twentyClient.get<TwentyRecord>(OBJECT_NAME, offerId)) as Record<string, any>;
+    } catch {
+      res.status(404).json({ error: "Offer not found" });
+      return;
+    }
+    if (String(offer.funnelType ?? "LEAD").toUpperCase() !== "RECRUITMENT") {
+      res.status(400).json({ error: "This funnel does not accept applications" });
+      return;
+    }
+
+    const careerSlug = String(offer.careerSlug ?? "").trim();
+    if (!careerSlug) {
+      res.status(500).json({ error: "Recruitment funnel is not configured" });
+      return;
+    }
+    const matches = await twentyClient.list<TwentyRecord>("agencyCareers", {
+      limit: 1,
+      filter: `slug[eq]:${careerSlug}`,
+    } as any);
+    const career = matches[0] as Record<string, any> | undefined;
+    if (!career || String(career.status ?? "").toUpperCase() !== "PUBLISHED") {
+      res.status(404).json({ error: "Role not found" });
+      return;
+    }
+
+    const result = await submitApplication({
+      career: career as never,
+      offerId,
+      answers: answers as Record<string, string>,
+      videoUrl: typeof videoUrl === "string" ? videoUrl : undefined,
+      videoNote: typeof videoNote === "string" ? videoNote : undefined,
+      config: (offer.applicationConfig ?? null) as never,
+      sourceUrl,
+      visitorId,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+    });
+
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+    res.status(201).json({ success: true, applicationId: result.applicationId });
+  } catch (err: any) {
+    log.error("Error creating application:", err.message);
+    console.error("[public] application error", err);
     res.status(500).json({ error: err.message });
   }
 });
