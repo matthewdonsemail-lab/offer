@@ -15,6 +15,7 @@ if (result.error) {
 import express from "express";
 import cors from "cors";
 import authRoutes from "./routes/auth.js";
+import oauthRoutes from "./routes/oauth.js";
 import offersRoutes from "./routes/offers.js";
 import prospectsRoutes from "./routes/prospects.js";
 import industriesRoutes from "./routes/industries.js";
@@ -62,6 +63,7 @@ export function createApp() {
   });
 
   app.use("/api/auth", authRoutes);
+  app.use("/api/oauth", oauthRoutes);
   app.use("/api/offers", offersRoutes);
   app.use("/api/prospects", prospectsRoutes);
   app.use("/api/industries", industriesRoutes);

@@ -110,6 +110,43 @@ export async function verifyTwentyUser(
   }
 }
 
+/**
+ * Look up an active Twenty user by id or email (OAuth sign-in: the token proves
+ * who signed in, this resolves the display identity). Null when not found or
+ * when Twenty Postgres is not configured.
+ */
+export async function findTwentyUser(
+  by: { id?: string; email?: string },
+): Promise<TwentyUser | null> {
+  const pool = getPool();
+  if (!pool || (!by.id && !by.email)) return null;
+  try {
+    const res = by.id
+      ? await pool.query(
+          `SELECT id, email, "firstName", "lastName", "isEmailVerified"
+           FROM core."user" WHERE id = $1 AND "deletedAt" IS NULL AND NOT disabled`,
+          [by.id],
+        )
+      : await pool.query(
+          `SELECT id, email, "firstName", "lastName", "isEmailVerified"
+           FROM core."user" WHERE email = LOWER($1) AND "deletedAt" IS NULL AND NOT disabled`,
+          [by.email!.trim()],
+        );
+    const row = res.rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      email: row.email,
+      firstName: row.firstName ?? null,
+      lastName: row.lastName ?? null,
+      isEmailVerified: !!row.isEmailVerified,
+    };
+  } catch (error) {
+    console.error("[twenty-pg] findTwentyUser error:", error);
+    return null;
+  }
+}
+
 export async function closeTwentyPg(): Promise<void> {
   if (pool) {
     await pool.end();
