@@ -527,7 +527,7 @@ export function PreviewPage({ mode = 'preview', slug = 'default', careerSlug }: 
               the builder keeps the placeholder so a missing video is visible. */}
           {!done && (offer.videoUrl?.primaryLinkUrl || mode !== 'public') && (
             <div id="top-video" className="mx-auto w-full max-w-2xl scroll-mt-6">
-              <div className="overflow-hidden rounded-[24px] bg-[#F8F9FB]" style={{ aspectRatio: "16/10" }}>
+              <div className="overflow-hidden rounded-[24px] bg-[#F8F9FB]" style={{ aspectRatio: "16/9" }}>
                 {offer.videoUrl?.primaryLinkUrl ? (
                   <FunnelVideo
                     src={offer.videoUrl.primaryLinkUrl}
