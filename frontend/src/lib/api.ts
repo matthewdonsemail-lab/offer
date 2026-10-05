@@ -83,7 +83,22 @@ export const api = {
   industries: {
     list: () => request<Array<{ key: string; label: string; urlKey?: string }>>('/api/industries'),
   },
+  careers: {
+    /** Slug + title of every agencyCareers row, for the funnel-type picker. */
+    list: () =>
+      request<Array<{ id: string; slug: string | null; title: string | null; status: string | null }>>(
+        '/api/offers/careers',
+      ),
+  },
 };
+
+export function useCareers() {
+  return useQuery({
+    queryKey: ['careers'],
+    queryFn: api.careers.list,
+    staleTime: 5 * 60 * 1000,
+  });
+}
 
 export function useOffers() {
   return useQuery({

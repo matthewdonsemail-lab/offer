@@ -47,6 +47,12 @@ function PublicProspectRoute() {
   return <PreviewPage mode="public" slug="default" key={prospectKey} />;
 }
 
+/** Recruitment funnels: /offer/job/:careerSlug resolves through the career. */
+function PublicRecruitRoute() {
+  const { careerSlug } = useParams<{ careerSlug: string }>();
+  return <PreviewPage mode="public" careerSlug={careerSlug || ''} key={careerSlug} />;
+}
+
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return !!localStorage.getItem('offer-builder-token');
@@ -88,6 +94,11 @@ export function App() {
             <Route
               path="/offer/prospect/:prospectKey"
               element={<PublicProspectRoute />}
+            />
+            {/* Recruitment surface: career-linked application funnel or 404 */}
+            <Route
+              path="/offer/job/:careerSlug"
+              element={<PublicRecruitRoute />}
             />
             <Route 
               path="/*" 
