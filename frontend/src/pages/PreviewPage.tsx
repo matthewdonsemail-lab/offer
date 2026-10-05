@@ -88,7 +88,22 @@ export function PreviewPage({ mode = 'preview', slug = 'default', careerSlug }: 
         console.log('[PreviewPage] fetching offer', isPublic ? slug : id, 'industry', industryId, 'mode:', mode, 'token present:', !!token);
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        const response = await fetch(url, { headers });
+        // The public route reads Twenty on every request, and a slow or failed
+        // read used to put "Offer Not Found" in front of a real visitor. Retry
+        // transient failures (network errors, 5xx) before giving up; a 404 is
+        // a real answer and is not retried.
+        const attempts = isPublic ? 3 : 1;
+        let response: Response | null = null;
+        for (let attempt = 1; attempt <= attempts; attempt++) {
+          try {
+            response = await fetch(url, { headers });
+            if (response.status < 500) break;
+          } catch (e) {
+            if (attempt === attempts) throw e;
+          }
+          if (attempt < attempts) await new Promise((r) => setTimeout(r, 600 * attempt));
+        }
+        if (!response) throw new Error('Failed to fetch offer');
         console.log('[PreviewPage] response', response.status, response.statusText);
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));
@@ -152,6 +167,24 @@ export function PreviewPage({ mode = 'preview', slug = 'default', careerSlug }: 
           setProspect(p);
           console.log('[Preview] prospect tailored', { city: p.city, niche: p.niche });
         }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, prospectKey]);
+
+  // Public funnel with no prospect (e.g. /offer/book-a-consultation framed on
+  // listeningkit.com/consultation): look up the visitor's city so {{area}}
+  // reads like the tailored prospect version instead of a template.
+  const [geoCity, setGeoCity] = React.useState('');
+  React.useEffect(() => {
+    if (mode !== 'public' || prospectKey) return;
+    let cancelled = false;
+    fetch('/api/public/geo')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((g) => {
+        if (!cancelled && g && typeof g.city === 'string') setGeoCity(g.city);
       })
       .catch(() => {});
     return () => {
@@ -371,7 +404,12 @@ export function PreviewPage({ mode = 'preview', slug = 'default', careerSlug }: 
   // {{area}} priority: explicit ?area= → linked prospect record → dashed
   // token placeholder. Industry iframes send ?prospect= so the funnel reads
   // the actual row instead of generic copy.
-  const area = areaParam || prospect?.city || '';
+  // Public funnel only: when no ?area= or prospect names a place, use the
+  // visitor's own city (Vercel geo) so the copy reads tailored, not templated.
+  const area = areaParam || prospect?.city || (offer as any).prospectCity || geoCity || '';
+  // The builder shows the dashed {{area}} token so template vs tailored is
+  // obvious; a real visitor on the public funnel must never see it.
+  const keepToken = mode !== 'public';
   // Quiz currency comes from the prospect record (stamped at enrichment).
   // Last-resort "$" only — the field should always be present.
   const quizCurrency =
@@ -412,7 +450,7 @@ export function PreviewPage({ mode = 'preview', slug = 'default', careerSlug }: 
     effTitle
   );
   const heroLedeHtml = effLedeMarkdown
-    ? resolveAreaTokens(effLedeMarkdown, { area, keepTokenIfMissing: true })
+    ? resolveAreaTokens(effLedeMarkdown, { area, keepTokenIfMissing: keepToken })
     : null;
 
   // Worked-with logos live below the quiz section (never inside it).
@@ -484,9 +522,12 @@ export function PreviewPage({ mode = 'preview', slug = 'default', careerSlug }: 
             </p>
           ) : null}
 
-          {!done && (
+          {/* The video sits on the page frameless: no outline, no hard drop. A
+              public visitor with no video for this offer gets no empty player;
+              the builder keeps the placeholder so a missing video is visible. */}
+          {!done && (offer.videoUrl?.primaryLinkUrl || mode !== 'public') && (
             <div id="top-video" className="mx-auto w-full max-w-2xl scroll-mt-6">
-              <div className="overflow-hidden rounded-[24px] border-2 border-[#0D2A4C] bg-[#F8F9FB] shadow-[0_12px_0_#0D2A4C,0_12px_28px_rgba(13,42,76,0.35)]" style={{ aspectRatio: "16/10" }}>
+              <div className="overflow-hidden rounded-[24px] bg-[#F8F9FB]" style={{ aspectRatio: "16/10" }}>
                 {offer.videoUrl?.primaryLinkUrl ? (
                   <FunnelVideo
                     src={offer.videoUrl.primaryLinkUrl}
@@ -622,6 +663,7 @@ export function PreviewPage({ mode = 'preview', slug = 'default', careerSlug }: 
               return typeof raw.introDesc === 'string' ? raw.introDesc : undefined;
             })()}
             area={area}
+            keepTokenIfMissing={keepToken}
             currency={quizCurrency}
             calendlyUrl={(offer as any).calendlyUrl}
             disqualifiedCalendlyUrl={(() => {
@@ -656,6 +698,7 @@ export function PreviewPage({ mode = 'preview', slug = 'default', careerSlug }: 
             return typeof raw.markdown === 'string' ? raw.markdown : undefined;
           })()}
           area={area}
+          keepTokenIfMissing={keepToken}
         />
       )}
       </section>

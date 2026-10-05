@@ -14,6 +14,8 @@ type LogoCarouselProps = {
   descMarkdown?: string;
   /** Prospect area for {{area}}/{{city}} tokens. */
   area?: string;
+  /** false on the public funnel: an unknown area reads "your area", never {{area}}. */
+  keepTokenIfMissing?: boolean;
 };
 
 /**
@@ -21,7 +23,7 @@ type LogoCarouselProps = {
  * Heading + description come from the offer object (RichEditor-managed);
  * art is navy-tinted; the row auto-scrolls slowly and pauses on hover.
  */
-export function LogoCarousel({ logos, heading, descMarkdown, area }: LogoCarouselProps) {
+export function LogoCarousel({ logos, heading, descMarkdown, area, keepTokenIfMissing = true }: LogoCarouselProps) {
   const cleaned = (logos || []).filter(
     (l) => l && typeof l.src === 'string' && l.src.length > 0,
   ).map((l) => ({
@@ -40,11 +42,11 @@ export function LogoCarousel({ logos, heading, descMarkdown, area }: LogoCarouse
   const row = [...unit, ...unit];
 
   const headingHtml = hasHeading
-    ? resolveAreaTokens(heading, { area, keepTokenIfMissing: true })
+    ? resolveAreaTokens(heading, { area, keepTokenIfMissing })
     : null;
   const descHtml =
     descMarkdown && descMarkdown.trim().length > 0
-      ? resolveAreaTokens(descMarkdown, { area, keepTokenIfMissing: true })
+      ? resolveAreaTokens(descMarkdown, { area, keepTokenIfMissing })
       : null;
 
   return (
