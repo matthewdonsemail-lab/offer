@@ -76,6 +76,32 @@ router.post("/logo-upload", authMiddleware, (req: AuthRequest, res) => {
 });
 
 /**
+ * GET /api/offers/careers
+ * Slug + title of every agencyCareers row, for the funnel-type selector in
+ * the editor. Registered before `/:id` so "careers" is not read as a record
+ * id. Authenticated: it is the editor's picker, not a public surface.
+ */
+router.get("/careers", authMiddleware, async (_req: AuthRequest, res) => {
+  try {
+    const careers = await twentyClient.list<TwentyRecord>("agencyCareers", 100);
+    res.json(
+      careers.map((row) => {
+        const r = row as unknown as Record<string, any>;
+        return {
+          id: r.id,
+          slug: r.slug ?? null,
+          title: r.title ?? r.name ?? null,
+          status: r.status ?? null,
+        };
+      }),
+    );
+  } catch (err: any) {
+    log.error("Error listing careers:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * GET /api/offers
  * List all agencyOffers from Twenty CRM
  */
@@ -113,7 +139,7 @@ router.get("/:id", authMiddleware, async (req: AuthRequest, res) => {
  */
 router.post("/", authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { title, name, heroH1, heroLede, videoUrl, videoMode, industryId, status, ctaType, prospectId, quizConfig, quiz, calendlyUrl, thankYouConfig, disqualifiedConfig, metaPixelId, utmSwaps, mediaLogos, carouselHeading, carouselDesc, brandName, brandSub, brandLogoUrl } = req.body;
+    const { title, name, heroH1, heroLede, videoUrl, videoMode, industryId, status, ctaType, prospectId, quizConfig, quiz, calendlyUrl, thankYouConfig, disqualifiedConfig, metaPixelId, utmSwaps, mediaLogos, carouselHeading, carouselDesc, brandName, brandSub, brandLogoUrl, funnelType, careerSlug, applicationConfig } = req.body;
     
     const data: Record<string, any> = {
       ...(title && { title }),
@@ -138,7 +164,11 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
       ...(carouselDesc !== undefined && { carouselDesc }),
       ...(brandName !== undefined && { brandName }),
       ...(brandSub !== undefined && { brandSub }),
-      ...(brandLogoUrl !== undefined && { brandLogoUrl }),    };
+      ...(brandLogoUrl !== undefined && { brandLogoUrl }),
+      ...(funnelType !== undefined && { funnelType }),
+      ...(careerSlug !== undefined && { careerSlug }),
+      ...(applicationConfig !== undefined && { applicationConfig }),
+    };
 
     log.info(`Creating offer: ${JSON.stringify(data).substring(0, 200)}`);    const offer = await twentyClient.create<TwentyRecord>(OBJECT_NAME, data);
     log.info(`Created offer ${offer.id}`);
@@ -156,7 +186,7 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
 router.patch("/:id", authMiddleware, async (req: AuthRequest, res) => {
   try {
     const id = req.params.id as string;
-    const { title, name, heroH1, heroLede, videoUrl, videoMode, industryId, status, ctaType, prospectId, quizConfig, quiz, calendlyUrl, thankYouConfig, disqualifiedConfig, metaPixelId, utmSwaps, mediaLogos, carouselHeading, carouselDesc, brandName, brandSub, brandLogoUrl } = req.body;
+    const { title, name, heroH1, heroLede, videoUrl, videoMode, industryId, status, ctaType, prospectId, quizConfig, quiz, calendlyUrl, thankYouConfig, disqualifiedConfig, metaPixelId, utmSwaps, mediaLogos, carouselHeading, carouselDesc, brandName, brandSub, brandLogoUrl, funnelType, careerSlug, applicationConfig } = req.body;
     
     const data: Record<string, any> = {};
     if (title !== undefined) data.title = title;
@@ -182,6 +212,9 @@ router.patch("/:id", authMiddleware, async (req: AuthRequest, res) => {
     if (brandName !== undefined) data.brandName = brandName;
     if (brandSub !== undefined) data.brandSub = brandSub;
     if (brandLogoUrl !== undefined) data.brandLogoUrl = brandLogoUrl;
+    if (funnelType !== undefined) data.funnelType = funnelType;
+    if (careerSlug !== undefined) data.careerSlug = careerSlug;
+    if (applicationConfig !== undefined) data.applicationConfig = applicationConfig;
 
     log.info(`Updating offer ${id}: ${JSON.stringify(data).substring(0, 200)}`);
     const offer = await twentyClient.update<TwentyRecord>(OBJECT_NAME, id, data);

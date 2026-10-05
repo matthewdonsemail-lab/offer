@@ -1,6 +1,7 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Quiz } from '@/components/Quiz';
+import { RecruitApplication, type ApplicationConfig, type ApplicationStep } from '@/components/RecruitApplication';
 import { LogoCarousel } from '@/components/LogoCarousel';
 import { FunnelVideo } from '@/components/FunnelVideo';
 import { resolveAreaTokens } from '@/lib/resolveTokens';
@@ -24,9 +25,16 @@ interface OfferData {
   quiz?: any;
   calendlyUrl?: string;
   metaPixelId?: string;
+  /** LEAD (default) or RECRUITMENT. RECRUITMENT renders the application form. */
+  funnelType?: string;
+  careerSlug?: string;
+  applicationConfig?: ApplicationConfig;
+  /** Normalised from the agencyCareers record server-side; never authored here. */
+  careerQuestionnaire?: ApplicationStep[];
+  roleTitle?: string;
 }
 
-export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'public' | 'preview'; slug?: string } = {}) {
+export function PreviewPage({ mode = 'preview', slug = 'default', careerSlug }: { mode?: 'public' | 'preview'; slug?: string; careerSlug?: string } = {}) {
   const { id, industryId, prospectKey: prospectRouteKey } = useParams<{ id: string; industryId: string; prospectKey: string }>();
   const [offer, setOffer] = React.useState<OfferData | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -35,9 +43,17 @@ export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'pu
   const [qualification, setQualification] = React.useState<string | null>(null);
   const [leadId, setLeadId] = React.useState<string | null>(null);
   const [meetingBooked, setMeetingBooked] = React.useState(false);
+  const [applicationSubmitted, setApplicationSubmitted] = React.useState(false);
   const [refreshTick, setRefreshTick] = React.useState(0);
   // Public funnel has no :id param — fall back to the loaded offer id, then slug.
   const storageId = id || offer?.id || slug;
+
+  // A RECRUITMENT funnel has no Calendly step and no qualification scoring.
+  // `done` is whichever end state applies, so the hero/booked-view branches
+  // below read the same for both funnel types.
+  const isRecruitment =
+    String((offer as any)?.funnelType ?? 'LEAD').toUpperCase() === 'RECRUITMENT';
+  const done = isRecruitment ? applicationSubmitted : meetingBooked;
 
   const prospectKey = prospectRouteKey || (() => {
     try {
@@ -60,7 +76,9 @@ export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'pu
     async function fetchOffer() {
       try {
         const isPublic = mode === 'public';
-        const offerPath = isPublic && prospectKey
+        const offerPath = isPublic && careerSlug
+          ? `/api/public/offers/job/${encodeURIComponent(careerSlug)}`
+          : isPublic && prospectKey
           ? `/api/public/offers/by-prospect/${encodeURIComponent(prospectKey)}`
           : isPublic
             ? `/api/public/offers/${slug}`
@@ -88,7 +106,7 @@ export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'pu
       }
     }
     fetchOffer();
-  }, [id, industryId, mode, slug, prospectKey, refreshTick]);
+  }, [id, industryId, mode, slug, careerSlug, prospectKey, refreshTick]);
 
   // Report CONTENT height to an embedding parent (ui-kit iframe) so it can
   // size the frame instead of scrolling inside it on mobile. Public mode only.
@@ -120,7 +138,7 @@ export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'pu
       window.removeEventListener('resize', post);
       window.clearInterval(t);
     };
-  }, [mode, quizKey, qualification, meetingBooked, leadId, offer?.id]);
+  }, [mode, quizKey, qualification, meetingBooked, applicationSubmitted, leadId, offer?.id]);
 
   // ?prospect=<id|slug> (public funnel iframes or the editor's preview-as pick)
   // loads the prospect record so {{area}} and quiz currency tailor to it.
@@ -184,7 +202,7 @@ export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'pu
 
   // Once booking completes, scroll to the booked main video.
   React.useEffect(() => {
-    if (!meetingBooked) return;
+    if (!meetingBooked || isRecruitment) return;
     const t = window.setTimeout(() => {
       const el =
         document.getElementById('booked-main-video') ||
@@ -194,13 +212,13 @@ export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'pu
       console.log('[Preview] scrolled to booked video');
     }, 350);
     return () => window.clearTimeout(t);
-  }, [meetingBooked]);
+  }, [meetingBooked, isRecruitment]);
 
   // Testing control: simulate the Calendly event_scheduled without a real
   // booking, so the booked thank-you + videos can be previewed. Writes the
   // same booking flag the real widget event would write.
   const handleSimulateBooking = () => {
-    if (!storageId) return;
+    if (!storageId || isRecruitment) return;
     try {
       localStorage.setItem(`quiz_booking_${storageId}`, JSON.stringify({ at: new Date().toISOString(), uri: null, simulated: true }));
       document.cookie = `quiz_booking_${storageId}=1; path=/; max-age=2592000`;
@@ -280,6 +298,7 @@ export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'pu
     setQualification(null);
     setLeadId(null);
     setMeetingBooked(false);
+    setApplicationSubmitted(false);
     setQuizKey((k) => k + 1);
     console.log('[Preview] reset quiz and cleared cookie', key);
   };
@@ -453,19 +472,19 @@ export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'pu
               </div>
             </div>
           )}
-          {!meetingBooked && hasHeroHeadline && (
+          {!done && hasHeroHeadline && (
             <h1 id="offer-heading" className="font-heading text-4xl font-bold leading-[1.05] tracking-tight text-[#0D2A4C] sm:text-5xl md:text-6xl lg:text-7xl" style={{ fontFamily: 'Satoshi, sans-serif' }}>
               {heroHeadline}
             </h1>
           )}
 
-          {!meetingBooked && heroLedeHtml ? (
+          {!done && heroLedeHtml ? (
             <p className="max-w-2xl text-xl text-[#0D2A4C]/60 md:text-2xl">
               <span dangerouslySetInnerHTML={{ __html: heroLedeHtml }} />
             </p>
           ) : null}
 
-          {!meetingBooked && (
+          {!done && (
             <div id="top-video" className="mx-auto w-full max-w-2xl scroll-mt-6">
               <div className="overflow-hidden rounded-[24px] border-2 border-[#0D2A4C] bg-[#F8F9FB] shadow-[0_12px_0_#0D2A4C,0_12px_28px_rgba(13,42,76,0.35)]" style={{ aspectRatio: "16/10" }}>
                 {offer.videoUrl?.primaryLinkUrl ? (
@@ -489,7 +508,7 @@ export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'pu
             </div>
           )}
 
-{meetingBooked ? (
+{done ? (
             <div id="booked-content" className="mx-auto flex w-full max-w-6xl scroll-mt-6 flex-col gap-10">
               {(activeDoneCfg?.badgeText || activeDoneCfg?.heading) && (
                 <div className="text-center">
@@ -555,6 +574,21 @@ export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'pu
                 </>
               ) : null}
             </div>
+          ) : isRecruitment ? (
+          // A recruitment funnel has no Calendly and no disqualification
+          // branch. RecruitApplication owns both the form and its own
+          // confirmation, so it stays mounted after submit; the hero above
+          // hides because `done` is true.
+          <RecruitApplication
+            key={quizKey}
+            steps={Array.isArray((offer as any).careerQuestionnaire) ? (offer as any).careerQuestionnaire : []}
+            config={(offer as any).applicationConfig ?? null}
+            roleTitle={(offer as any).roleTitle || undefined}
+            offerId={offer.id}
+            metaPixelId={(offer as any).metaPixelId || undefined}
+            endpoints={{ submit: '/api/public/applications' }}
+            onSubmitted={() => setApplicationSubmitted(true)}
+          />
           ) : (
           <Quiz
             key={quizKey}
@@ -611,7 +645,7 @@ export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'pu
         </div>
 
         {/* Worked-with logos — pre-booking only; the booked view is the video. */}
-      {!meetingBooked && (
+      {!done && (
         <LogoCarousel
           logos={carouselLogos}
           heading={typeof (offer as any)?.carouselHeading === 'string' ? (offer as any).carouselHeading : undefined}
@@ -649,7 +683,7 @@ export function PreviewPage({ mode = 'preview', slug = 'default' }: { mode?: 'pu
         <span className="text-[11px] text-[var(--ods-text-tertiary)] hidden sm:inline">
           {leadId ? `Lead ${leadId.slice(0, 8)}…` : 'No lead yet'}
         </span>
-        {!meetingBooked && (
+        {!done && (
           <button
             onClick={handleSimulateBooking}
             className="ml-1 h-7 px-3 text-[11px] font-medium bg-[var(--ods-brand-600,#2563eb)] text-white rounded-full hover:opacity-90 active:scale-[0.97] transition-all"
