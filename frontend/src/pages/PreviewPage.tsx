@@ -125,16 +125,28 @@ export function PreviewPage({ mode = 'preview', slug = 'default', careerSlug }: 
 
   // Report CONTENT height to an embedding parent (ui-kit iframe) so it can
   // size the frame instead of scrolling inside it on mobile. Public mode only.
-  // Measures the content wrapper — never document scrollHeight, which is
-  // floored at the viewport height and would lock the frame at whatever
-  // fallback size the parent started with.
+  // When framed, html/body/#root lose their 100vh floors and their own
+  // scrolling (index.css, html.embedded-funnel), so body.scrollHeight IS the
+  // content height — margins and padding outside the content wrapper included,
+  // which the old wrapper-only measurement missed (the frame ended up a few px
+  // short and scrolled internally, trapping touch scrolling on phones).
   const contentRef = React.useRef<HTMLDivElement>(null);
   const lastPostedHeight = React.useRef(0);
   React.useEffect(() => {
     if (mode !== 'public') return;
+    let framed = false;
+    try {
+      framed = window.self !== window.top;
+    } catch {
+      framed = true; // cross-origin parent: definitely framed
+    }
+    if (framed) document.documentElement.classList.add('embedded-funnel');
     const post = () => {
       try {
-        const h = Math.ceil(contentRef.current?.offsetHeight || 0);
+        const wrapper = Math.ceil(contentRef.current?.offsetHeight || 0);
+        // No content wrapper yet (still loading): report nothing, so the parent
+        // keeps its spinner instead of flashing a spinner-sized frame.
+        const h = wrapper > 0 && framed ? Math.max(wrapper, Math.ceil(document.body.scrollHeight)) : wrapper;
         if (h > 0 && h !== lastPostedHeight.current) {
           lastPostedHeight.current = h;
           window.parent.postMessage({ type: 'offer:height', height: h }, '*');
@@ -145,6 +157,8 @@ export function PreviewPage({ mode = 'preview', slug = 'default', careerSlug }: 
     const ro = new ResizeObserver(post);
     try {
       ro.observe(document.documentElement);
+      ro.observe(document.body);
+      if (contentRef.current) ro.observe(contentRef.current);
     } catch {}
     window.addEventListener('resize', post);
     const t = window.setInterval(post, 1500);
@@ -152,6 +166,7 @@ export function PreviewPage({ mode = 'preview', slug = 'default', careerSlug }: 
       ro.disconnect();
       window.removeEventListener('resize', post);
       window.clearInterval(t);
+      document.documentElement.classList.remove('embedded-funnel');
     };
   }, [mode, quizKey, qualification, meetingBooked, applicationSubmitted, leadId, offer?.id]);
 
