@@ -39,12 +39,14 @@ type QuizProps = {
   prospectId?: string;
   thankYou?: QuizDoneContent | null;
   disqualified?: QuizDoneContent | null;
+  /** false on the public funnel: an unknown area reads "your area", never {{area}}. */
+  keepTokenIfMissing?: boolean;
   /** Lead-capture endpoint. Defaults to the internal route; the public
    *  funnel at offer.domain.com passes '/api/public/leads'. */
   leadsEndpoint?: string;
 };
 
-export function Quiz({ onComplete, onLeadCreated, onQualificationChange, onMeetingBooked, questions, introTitle, introDesc, area, currency, calendlyUrl, disqualifiedCalendlyUrl, offerId, prospectId, thankYou, disqualified, leadsEndpoint = '/api/leads' }: QuizProps) {
+export function Quiz({ onComplete, onLeadCreated, onQualificationChange, onMeetingBooked, questions, introTitle, introDesc, area, currency, calendlyUrl, disqualifiedCalendlyUrl, offerId, prospectId, thankYou, disqualified, leadsEndpoint = '/api/leads', keepTokenIfMissing = true }: QuizProps) {
   const qs = questions && questions.length ? questions : [];
   const introHeading = introTitle && introTitle.trim().length > 0 ? introTitle : '';
   const introLede = introDesc && introDesc.trim().length > 0 ? introDesc : '';
@@ -52,8 +54,8 @@ export function Quiz({ onComplete, onLeadCreated, onQualificationChange, onMeeti
   // {{currency}} resolves first (plain glyph, tag-safe), then area tokens.
   const currencyToken = currency && currency.trim().length > 0 ? currency : '$';
   const withCurrency = (html: string) => html.replace(/\{\{\s*currency\s*\}\}/gi, currencyToken);
-  const introHeadingHtml = resolveAreaTokens(withCurrency(introHeading), { area, keepTokenIfMissing: true });
-  const introLedeHtml = resolveAreaTokens(withCurrency(introLede), { area, keepTokenIfMissing: true });
+  const introHeadingHtml = resolveAreaTokens(withCurrency(introHeading), { area, keepTokenIfMissing });
+  const introLedeHtml = resolveAreaTokens(withCurrency(introLede), { area, keepTokenIfMissing });
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [done, setDone] = useState(false);

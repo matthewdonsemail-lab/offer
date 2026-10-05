@@ -384,6 +384,32 @@ router.get("/offers/:slug", async (req, res) => {
 });
 
 /**
+ * GET /api/public/geo
+ * The visitor's approximate location from Vercel's edge geo headers, so a
+ * public funnel with no prospect can still fill {{area}} with a real city.
+ * Returns empty strings off Vercel (local dev) — the client then falls back
+ * to plain "your area". Nothing is stored.
+ */
+router.get("/geo", (req, res) => {
+  const header = (name: string) => {
+    const v = req.headers[name];
+    const raw = Array.isArray(v) ? v[0] : v;
+    if (!raw) return "";
+    try {
+      return decodeURIComponent(String(raw));
+    } catch {
+      return String(raw);
+    }
+  };
+  res.set("Cache-Control", "private, no-store");
+  res.json({
+    city: header("x-vercel-ip-city"),
+    region: header("x-vercel-ip-country-region"),
+    country: header("x-vercel-ip-country"),
+  });
+});
+
+/**
  * GET /api/public/prospects/:key
  * Unauthenticated prospect lookup for copy tailoring (industry pages).
  * :key may be a record id or slug. Returns ONLY city/region/name/niche —
