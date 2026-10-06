@@ -324,6 +324,19 @@ body {
   height: 100vh;
 }
 
+/* Embedded in an iframe (listeningkit.com /consultation and /career/:slug/apply).
+   100vh inside an iframe is the iframe's own height, so the page could never be
+   shorter than its frame and any overshoot became an inner scroll that trapped
+   touch scrolling on phones. Embedded, the page is exactly its content height
+   and never scrolls on its own: the parent page does all the scrolling. */
+html.embedded-funnel,
+html.embedded-funnel body,
+html.embedded-funnel #root {
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
